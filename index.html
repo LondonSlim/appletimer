@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AppleTimer</title>
+<meta name="theme-color" content="#0e2b33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600&display=swap">
+<style>
+/* Layout: one centred column — wordmark, the apple being eaten, the countdown, one big button, two drum wheels. */
+:root {
+  --bg-work: #0e2b33;   /* deep teal behind the red apple */
+  --bg-rest: #2a1236;   /* aubergine behind the green apple */
+  --skin-work: #e23b2e;
+  --skin-work-hi: #ff8a63;
+  --skin-rest: #9fcf3a;
+  --skin-rest-hi: #e2f58a;
+  --flesh: #fff0c9;
+  --ink: #fff4e3;
+  --muted: rgba(255, 244, 227, .58);
+  --line: rgba(255, 244, 227, .16);
+  --stalk: #6b3f1f;
+  --leaf: #4fae36;
+
+  --bg: var(--bg-work);
+  --skin: var(--skin-work);
+  --skin-hi: var(--skin-work-hi);
+
+  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --body: "Rubik", "Segoe UI", system-ui, sans-serif;
+  --row: 36px;
+  color-scheme: dark;
+}
+body[data-phase="rest"] {
+  --bg: var(--bg-rest);
+  --skin: var(--skin-rest);
+  --skin-hi: var(--skin-rest-hi);
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  transition: background-color .9s ease;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.app {
+  box-sizing: border-box;
+  min-height: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding-block: 18px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.brand { font-family: var(--display); font-size: 18px; letter-spacing: .02em; }
+.brand b { color: var(--skin); font-weight: 400; transition: color .9s; }
+.chip {
+  font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  padding: 5px 11px; border-radius: 999px; border: 1.5px solid var(--skin); color: var(--skin);
+  transition: color .9s, border-color .9s;
+}
+
+.stage { position: relative; width: min(220px, 58vw, 34vh); aspect-ratio: 200 / 220; max-width: 100%; }
+.stage::before {
+  content: ""; position: absolute; inset: 8% -12% -4%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--skin) 28%, transparent), transparent);
+  transition: background .9s;
+}
+.stage svg { position: relative; width: 100%; height: 100%; overflow: visible; }
+.fruit { transform-box: fill-box; transform-origin: 50% 60%; }
+.fruit.pop { animation: pop .7s cubic-bezier(.3, 1.6, .5, 1); }
+.fruit.wobble { animation: wobble .9s ease-in-out; }
+@keyframes pop { 0% { transform: scale(.5) rotate(-12deg); } 100% { transform: none; } }
+@keyframes wobble { 0%,100% { transform: none; } 20% { transform: rotate(-7deg); } 45% { transform: rotate(6deg); } 70% { transform: rotate(-3deg); } }
+
+.time {
+  font-family: var(--display); font-size: clamp(48px, 15vw, 66px); line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+body[data-status="paused"] .time { animation: blink 1.2s steps(2, jump-none) infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.rounds { min-height: 16px; display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.rounds svg { width: 13px; height: 15px; color: var(--skin-work); }
+.rounds span { margin-left: 6px; letter-spacing: .04em; }
+
+.controls { display: flex; align-items: center; gap: 22px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, .wheel:focus-visible { outline: 3px solid var(--skin-hi); outline-offset: 3px; }
+.go {
+  width: 88px; height: 88px; border-radius: 50%; border: 0;
+  background: var(--skin); color: var(--bg);
+  display: grid; place-items: center;
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--skin) 55%, #000), 0 14px 28px rgba(0,0,0,.35);
+  transition: background .9s, transform .08s, box-shadow .08s;
+}
+.go:active { transform: translateY(4px); box-shadow: 0 2px 0 color-mix(in srgb, var(--skin) 55%, #000), 0 6px 14px rgba(0,0,0,.35); }
+.go svg { width: 34px; height: 34px; }
+.reset {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 9px 15px; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+}
+.reset:hover { border-color: var(--muted); }
+.reset svg { width: 15px; height: 15px; }
+
+.wheels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; width: min(300px, 100%); }
+.dial { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.dial label { font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.drum { position: relative; width: 100%; }
+.drum::after {
+  content: "min"; position: absolute; left: 0; right: 0; top: var(--row); height: var(--row);
+  border-block: 1.5px solid var(--line); pointer-events: none;
+  display: flex; align-items: center; justify-content: flex-end; padding-right: 12px;
+  font-size: 12px; color: var(--muted);
+}
+.wheel {
+  height: calc(var(--row) * 3); overflow-y: scroll; scroll-snap-type: y mandatory;
+  scrollbar-width: none; overscroll-behavior: contain; cursor: grab; border-radius: 10px;
+  -webkit-mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+          mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel.dragging { cursor: grabbing; scroll-snap-type: none; }
+.track { padding-block: var(--row); }
+.item {
+  height: var(--row); scroll-snap-align: center;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--display); font-size: 18px; color: var(--muted);
+  font-variant-numeric: tabular-nums; transition: color .2s, font-size .2s;
+}
+.item.sel { color: var(--ink); font-size: 24px; }
+.hint { font-size: 12px; color: var(--muted); text-align: center; min-height: 15px; }
+.keys { font-size: 11px; color: var(--muted); opacity: .7; text-align: center; }
+kbd { font-family: var(--body); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fruit.pop, .fruit.wobble, body[data-status="paused"] .time { animation: none; }
+  body, .go, .chip, .brand b { transition: none; }
+}
+@media (max-height: 560px) { .keys { display: none; } .app { gap: 10px; } }
+</style>
+</head>
+<body data-phase="work" data-status="idle">
+<main class="app">
+  <header>
+    <div class="brand"><b>Apple</b>Timer</div>
+    <div class="chip" id="chip">Ready</div>
+  </header>
+
+  <div class="stage">
+    <svg viewBox="0 0 200 220" aria-hidden="true">
+      <defs>
+        <radialGradient id="skinGrad" cx="36%" cy="34%" r="72%">
+          <stop offset="0" style="stop-color: var(--skin-hi)"/>
+          <stop offset=".55" style="stop-color: var(--skin)"/>
+          <stop offset="1" style="stop-color: color-mix(in srgb, var(--skin) 70%, #000)"/>
+        </radialGradient>
+        <mask id="mSkin" maskUnits="userSpaceOnUse" x="-20" y="-20" width="240" height="260">
+          <rect x="-20" y="-20" width="240" height="260" fill="#fff"/><g id="bSkin" fill="#000"></g>
+        </mask>
+        <mask id="mFlesh" maskUnits="userSpaceOnUse" x="-20" y="-20" width="240" height="260">
+          <rect x="-20" y="-20" width="240" height="260" fill="#fff"/><g id="bFlesh" fill="#000"></g>
+        </mask>
+        <path id="appleShape" d="M100 62 C86 50 52 46 36 70 C18 98 26 150 52 178 C66 194 82 198 100 188 C118 198 134 194 148 178 C174 150 182 98 164 70 C148 46 114 50 100 62 Z"/>
+      </defs>
+      <g class="fruit" id="fruit">
+        <path d="M100 66 C100 52 102 40 109 28" fill="none" style="stroke: var(--stalk)" stroke-width="7" stroke-linecap="round"/>
+        <path d="M105 44 C116 24 140 21 154 29 C143 46 121 52 105 44 Z" style="fill: var(--leaf)"/>
+        <path d="M108 42 C122 36 136 32 148 31" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="2" stroke-linecap="round"/>
+        <use href="#appleShape" style="fill: var(--flesh)" mask="url(#mFlesh)"/>
+        <use href="#appleShape" fill="url(#skinGrad)" mask="url(#mSkin)"/>
+        <path d="M56 92 C48 108 48 128 55 144" fill="none" stroke="rgba(255,255,255,.32)" stroke-width="9" stroke-linecap="round" mask="url(#mSkin)"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+  <div class="rounds" id="rounds" aria-label="Rounds completed today"></div>
+
+  <div class="controls">
+    <button class="go" id="go" aria-label="Start">
+      <svg viewBox="0 0 24 24" id="goIcon"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+    </button>
+    <button class="reset" id="reset">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v5h5"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <div class="wheels">
+    <div class="dial">
+      <label for="wWork">Work</label>
+      <div class="drum"><div class="wheel" id="wWork" tabindex="0" role="spinbutton" aria-label="Work minutes"><div class="track"></div></div></div>
+    </div>
+    <div class="dial">
+      <label for="wRest">Rest</label>
+      <div class="drum"><div class="wheel" id="wRest" tabindex="0" role="spinbutton" aria-label="Rest minutes"><div class="track"></div></div></div>
+    </div>
+  </div>
+  <div class="hint" id="hint">Scroll the wheels to set your times</div>
+  <div class="keys"><kbd>Space</kbd> start / pause · <kbd>R</kbd> reset</div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  /* ---------- storage (optional) ---------- */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const saved = store.get("appletimer.settings", {});
+  const S = {
+    work: clamp(saved.work || 25, 1, 90),
+    rest: clamp(saved.rest || 5, 1, 30),
+    phase: "work",           // work | rest
+    status: "idle",          // idle | running | paused
+    phaseEnd: 0, remaining: 0, phaseLen: 0
+  };
+  const lenOf = ph => (ph === "work" ? S.work : S.rest) * 60000;
+
+  /* ---------- rounds today ---------- */
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
+  let rounds = store.get("appletimer.rounds", { d: today(), n: 0 });
+  if (rounds.d !== today()) rounds = { d: today(), n: 0 };
+  const MINI = '<svg viewBox="22 24 156 176"><use href="#appleShape" fill="currentColor"/></svg>';
+  function drawRounds() {
+    if (rounds.d !== today()) rounds = { d: today(), n: 0 };
+    const n = rounds.n, shown = Math.min(n, 10);
+    $("rounds").innerHTML = n ? MINI.repeat(shown) + `<span>${n} today</span>` : "";
+  }
+
+  /* ---------- the apple's bites ---------- */
+  const CEN = { x: 100, y: 125 };
+  const BITES = [
+    { x: 168, y: 100, r: 26 }, { x: 32, y: 110, r: 26 },
+    { x: 166, y: 142, r: 28 }, { x: 34, y: 146, r: 28 },
+    { x: 150, y: 68, r: 24 },  { x: 50, y: 70, r: 24 },
+    { x: 156, y: 176, r: 26 }, { x: 45, y: 177, r: 26 },
+    { x: 173, y: 121, r: 34 }, { x: 27, y: 128, r: 34 }
+  ];
+  const TEETH = [-48, -16, 16, 48].map(a => a * Math.PI / 180);
+  const biteEls = BITES.map(b => {
+    const dx = CEN.x - b.x, dy = CEN.y - b.y, L = Math.hypot(dx, dy);
+    const ux = dx / L, uy = dy / L;
+    const parts = [{ ox: 0, oy: 0, k: .8 }].concat(TEETH.map(a => ({
+      ox: (ux * Math.cos(a) - uy * Math.sin(a)) * .78, oy: (ux * Math.sin(a) + uy * Math.cos(a)) * .78, k: .38
+    })));
+    const mk = g => parts.map(() => { const c = document.createElementNS(NS, "circle"); c.setAttribute("r", 0); $(g).appendChild(c); return c; });
+    return { b, parts, skin: mk("bSkin"), flesh: mk("bFlesh") };
+  });
+  let lastP = -1;
+  function setBites(p) {
+    if (Math.abs(p - lastP) < .0005) return;
+    lastP = p;
+    const N = BITES.length;
+    biteEls.forEach((e, k) => {
+      const s = Math.sqrt(clamp(p * N - k, 0, 1));
+      const R = e.b.r * s;
+      const Rf = R > 0 ? R * Math.max(0, 1 - 5.5 / (1.16 * R)) : 0;  // flesh hole: same bite, slightly smaller
+      e.parts.forEach((pt, i) => {
+        const sk = e.skin[i], fl = e.flesh[i];
+        sk.setAttribute("cx", e.b.x + pt.ox * R); sk.setAttribute("cy", e.b.y + pt.oy * R); sk.setAttribute("r", pt.k * R);
+        fl.setAttribute("cx", e.b.x + pt.ox * Rf); fl.setAttribute("cy", e.b.y + pt.oy * Rf); fl.setAttribute("r", pt.k * Rf);
+      });
+    });
+  }
+  function animateFruit(cls) {
+    const f = $("fruit");
+    f.classList.remove("pop", "wobble"); void f.getBBox(); f.classList.add(cls);
+  }
+
+  /* ---------- sound ---------- */
+  let ctx = null, scheduled = [];
+  function ensureAudio() {
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+    } catch (e) { ctx = null; }
+  }
+  function bell(out, t, f, dur, vol) {
+    [[1, vol], [2.76, vol * .22], [5.4, vol * .07]].forEach(([m, v]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = f * m;
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.exponentialRampToValueAtTime(v, t + .012);
+      g.gain.exponentialRampToValueAtTime(.0001, t + dur / m ** .4);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + .1);
+    });
+  }
+  function chime(type, when) {
+    const out = ctx.createGain(); out.gain.value = .7; out.connect(ctx.destination);
+    const notes = type === "toRest" ? [1046.5, 784, 659.25, 523.25] : [523.25, 659.25, 784, 1046.5];
+    notes.forEach((f, i) => bell(out, when + i * .2, f, 1.8, .3));
+    if (type === "toWork") notes.slice(2).forEach((f, i) => bell(out, when + 1.0 + i * .2, f, 2, .28));
+    return out;
+  }
+  function scheduleChime() {
+    if (!ctx) return;
+    const dt = (S.phaseEnd - Date.now()) / 1000;
+    if (dt < 0) return;
+    scheduled.push({ at: S.phaseEnd, node: chime(S.phase === "work" ? "toRest" : "toWork", ctx.currentTime + dt) });
+  }
+  function cancelChimes() {
+    const now = Date.now();
+    scheduled.forEach(s => { if (s.at > now) { try { s.node.disconnect(); } catch (e) {} } });
+    scheduled = [];
+  }
+
+  /* ---------- notifications ---------- */
+  let swReg = null;
+  function askNotify() {
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {}); } catch (e) {}
+  }
+  function notify(ended) {
+    try {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const title = ended === "work" ? "Time for a break" : "Back to work";
+      const body = ended === "work" ? `Work done. Rest for ${S.rest} min.` : `Rest over. Work for ${S.work} min.`;
+      const opt = { body, icon: "icon-192.png", tag: "appletimer", renotify: true, silent: true };
+      if (swReg) swReg.showNotification(title, opt); else new Notification(title, opt);
+    } catch (e) {}
+  }
+
+  /* ---------- timer ---------- */
+  function start() {
+    ensureAudio(); askNotify();
+    const now = Date.now();
+    if (S.status === "idle") {
+      S.phase = "work"; S.phaseLen = lenOf("work"); S.phaseEnd = now + S.phaseLen;
+      animateFruit("pop");
+    } else if (S.status === "paused") {
+      S.phaseEnd = now + S.remaining;
+    }
+    S.status = "running";
+    scheduleChime(); render();
+  }
+  function pause() {
+    S.remaining = Math.max(0, S.phaseEnd - Date.now());
+    S.status = "paused"; cancelChimes(); render();
+  }
+  function reset() {
+    cancelChimes();
+    S.status = "idle"; S.phase = "work"; S.remaining = 0;
+    animateFruit("pop"); render();
+  }
+  function toggle() { S.status === "running" ? pause() : start(); }
+
+  function tick() {
+    if (S.status === "running" && Date.now() >= S.phaseEnd) {
+      let ended;
+      while (Date.now() >= S.phaseEnd) {
+        ended = S.phase;
+        if (ended === "work") { if (rounds.d !== today()) rounds = { d: today(), n: 0 }; rounds.n++; store.set("appletimer.rounds", rounds); }
+        S.phase = ended === "work" ? "rest" : "work";
+        S.phaseLen = lenOf(S.phase);
+        S.phaseEnd += S.phaseLen;
+      }
+      scheduled = scheduled.filter(s => s.at > Date.now());
+      scheduleChime(); notify(ended); drawRounds();
+      animateFruit("pop");
+    }
+    render();
+  }
+
+  /* ---------- render ---------- */
+  const fmt = ms => { const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), s = t % 60; return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"); };
+  const ICON_PLAY = '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>';
+  const ICON_PAUSE = '<rect x="6.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor"/><rect x="13.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor"/>';
+  let last = {};
+  function put(key, val, fn) { if (last[key] !== val) { last[key] = val; fn(val); } }
+  function render() {
+    const now = Date.now();
+    const rem = S.status === "running" ? Math.max(0, S.phaseEnd - now) : S.status === "paused" ? S.remaining : lenOf("work");
+    const p = S.status === "idle" ? 0 : clamp(1 - rem / S.phaseLen, 0, 1);
+    const phase = S.status === "idle" ? "work" : S.phase;
+    const label = phase === "work" ? "Work" : "Rest";
+    put("phase", phase, v => { document.body.dataset.phase = v; document.querySelector('meta[name="theme-color"]').content = v === "work" ? "#0e2b33" : "#2a1236"; });
+    put("status", S.status, v => {
+      document.body.dataset.status = v;
+      $("goIcon").innerHTML = v === "running" ? ICON_PAUSE : ICON_PLAY;
+      $("go").setAttribute("aria-label", v === "running" ? "Pause" : v === "paused" ? "Resume" : "Start");
+      $("hint").textContent = v === "idle" ? "Scroll the wheels to set your times" : "Wheel changes apply from the next round";
+    });
+    put("chip", S.status === "idle" ? "Ready" : label + (S.status === "paused" ? " · paused" : ""), v => $("chip").textContent = v);
+    const t = fmt(rem);
+    put("time", t, v => $("time").textContent = v);
+    put("title", S.status === "idle" ? "AppleTimer" : `${t} ${label}${S.status === "paused" ? " (paused)" : ""}`, v => document.title = v);
+    setBites(p);
+  }
+
+  /* ---------- wheels ---------- */
+  function makeWheel(el, min, max, value, onChange) {
+    const ROW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--row")) || 36;
+    const track = el.querySelector(".track");
+    const items = [];
+    for (let v = min; v <= max; v++) { const d = document.createElement("div"); d.className = "item"; d.textContent = v; track.appendChild(d); items.push(d); }
+    el.setAttribute("aria-valuemin", min); el.setAttribute("aria-valuemax", max);
+    let current = null, target = null, targetTimer;
+    const goTo = (v, smooth) => el.scrollTo({ top: (v - min) * ROW, behavior: smooth ? "smooth" : "auto" });
+    const mark = v => {
+      if (current !== null) items[current - min].classList.remove("sel");
+      items[v - min].classList.add("sel"); current = v;
+      el.setAttribute("aria-valuenow", v); el.setAttribute("aria-valuetext", v + " minutes");
+    };
+    const step = d => {
+      target = clamp((target ?? current) + d, min, max); goTo(target, true);
+      clearTimeout(targetTimer); targetTimer = setTimeout(() => target = null, 400);
+    };
+    el.addEventListener("scroll", () => {
+      const v = clamp(Math.round(el.scrollTop / ROW) + min, min, max);
+      if (v !== current) { mark(v); onChange(v); }
+    }, { passive: true });
+    let acc = 0;
+    el.addEventListener("wheel", e => {
+      e.preventDefault();
+      acc += e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
+      if (Math.abs(acc) >= 30) { step(Math.sign(acc)); acc = 0; }
+    }, { passive: false });
+    el.addEventListener("keydown", e => {
+      const m = { ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 }[e.key];
+      if (m) { e.preventDefault(); step(m); }
+      else if (e.key === "Home") { e.preventDefault(); goTo(min, true); }
+      else if (e.key === "End") { e.preventDefault(); goTo(max, true); }
+    });
+    let drag = null;
+    el.addEventListener("pointerdown", e => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      drag = { y: e.clientY, top: el.scrollTop, moved: 0 };
+      el.setPointerCapture(e.pointerId); el.classList.add("dragging");
+    });
+    el.addEventListener("pointermove", e => {
+      if (!drag) return;
+      drag.moved = Math.max(drag.moved, Math.abs(e.clientY - drag.y));
+      el.scrollTop = drag.top - (e.clientY - drag.y);
+    });
+    const end = e => {
+      if (!drag) return;
+      el.classList.remove("dragging");
+      if (drag.moved < 4) {
+        const rect = el.getBoundingClientRect();
+        const v = clamp(Math.floor((e.clientY - rect.top + el.scrollTop) / ROW) - 1 + min, min, max);
+        goTo(v, true);
+      } else goTo(current, true);
+      drag = null;
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    mark(value);
+    requestAnimationFrame(() => goTo(value, false));
+  }
+  const saveSettings = () => store.set("appletimer.settings", { work: S.work, rest: S.rest });
+  makeWheel($("wWork"), 1, 90, S.work, v => { S.work = v; saveSettings(); render(); });
+  makeWheel($("wRest"), 1, 30, S.rest, v => { S.rest = v; saveSettings(); });
+
+  /* ---------- wiring ---------- */
+  $("go").addEventListener("click", toggle);
+  $("reset").addEventListener("click", reset);
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.code === "Space") { if (e.target.tagName === "BUTTON") return; e.preventDefault(); toggle(); }
+    else if (e.key === "r" || e.key === "R") reset();
+  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").then(r => { swReg = r; }).catch(() => {});
+  }
+
+  drawRounds(); render(); animateFruit("pop");
+  setInterval(tick, 250);
+})();
+</script>
+</body>
+</html>
